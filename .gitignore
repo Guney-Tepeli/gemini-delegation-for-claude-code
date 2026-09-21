@@ -1,0 +1,11 @@
+# Gerçek yapılandırma dosyaları kişisel mutlak yollar ve proje adları taşıyor.
+# Depoda yalnız `.ornek.` sürümleri var; gerçekleri yerelde kalır.
+agy/settings.json
+claude/command-gemini.md
+claude/agent-gemini.md
+
+# Betik çıktıları
+*.err
+
+# macOS
+.DS_Store
