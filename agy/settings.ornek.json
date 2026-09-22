@@ -7,9 +7,7 @@
       "command(ls)",
       "command(wc)",
       "command(find)",
-      "command(git)",
-      "command(regex:npx (tsc|eslint|next) .*)",
-      "command(regex:npm run (build|lint|test))",
+      "command(regex:git (--no-pager )?(grep|ls-files|log --oneline|diff --stat|status --short)( (-[0-9]+|-[eilnwEF]|--count|--name-only|--files-with-matches|--untracked|--cached|--max-count=[0-9]+|--no-color|[A-Za-z0-9_./*:@^~,+=][A-Za-z0-9_./*:@^~,+=-]*))*)",
       "command(regex:node --check .*)",
       "command(pwd)",
       "command(echo)",
@@ -47,7 +45,9 @@
       "read_file(/MUTLAK/YOL/depolar/grup/arka-uc/Caddyfile)",
       "write_file(regex:.*/\\.env.*)",
       "write_file(regex:.*/\\.git/.*)",
-      "write_file(/MUTLAK/YOL/depolar/grup/arka-uc/db/migrations/*)",
+      "write_file(/MUTLAK/YOL/depolar/grup/arka-uc/db/migrations)",
+      "write_file(/MUTLAK/YOL/depolar/grup/arka-uc/db/migrations/20260814202552_initial_schema.sql)",
+      "write_file(/MUTLAK/YOL/depolar/grup/arka-uc/db/migrations/20260814203528_add_restaurant_tables.sql)",
       "write_file(/MUTLAK/YOL/depolar/grup/arka-uc/compose.yaml)",
       "write_file(/MUTLAK/YOL/depolar/grup/arka-uc/Caddyfile)"
     ]
