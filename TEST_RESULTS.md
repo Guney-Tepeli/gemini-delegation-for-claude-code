@@ -3,6 +3,7 @@
 # Test Results
 
 [![tests](https://img.shields.io/badge/tests-6%2F6%20passing-brightgreen)](#security-tests)
+[![wrapper](https://img.shields.io/badge/wrapper%20contract-39%2F39%20passing-brightgreen)](#wrapper-contract-tests-24-october-2026)
 [![security](https://img.shields.io/badge/secret%20files-blocked-success)](#security-tests)
 [![context](https://img.shields.io/badge/context%20offloaded-41k%20%E2%86%92%2015%20tokens-blue)](#performance)
 [![verified](https://img.shields.io/badge/output-independently%20verified-brightgreen)](#test-6--the-savings-measurement)
@@ -526,3 +527,99 @@ Bekleyen tek doğrulama: git argüman beyaz listesi yukarıdaki koşulardan sonr
 yazıldı, kota dolduğu için (`Resets in 127h26m13s`) yeniden ölçülemedi. Kota
 dönünce ilk çalıştırılacak komut yukarıdaki İngilizce bölümde.
 
+
+---
+
+## Wrapper contract tests (24 October 2026)
+
+**`bash tests/test_wrapper.sh` · macOS 15.6 · bash 3.2.57 · Python 3.14 · no quota**
+
+The earlier runs test `agy`'s permission layer through real Gemini calls. This
+suite tests the other layer — `bin/gemini-is.sh` itself — offline. It runs the
+real, unmodified script against a stub (`tests/stub/agy`): the script pins
+`agy` to `$HOME/.local/bin/agy` and its allowed root to
+`$HOME/Documents/GitHub`, so each test points `HOME` at a fresh fake home and
+both move with it. The stub records its working directory and every argv
+element, so the call pattern is checked exactly, not inferred.
+
+| Group | Tests | Covers |
+|---|---|---|
+| Exit codes | 10 | every documented code 0–5, including agy exiting non-zero with valid JSON (`1` wins) |
+| Call pattern | 6 | exact argv, `--write` → `--mode accept-edits`, `--yaz` warning, `cd` into the repo, task text passed verbatim and never shell-evaluated, `AGY`/`PATH` cannot redirect the binary |
+| Scope | 5 | outside root, outward symlink, name-prefix sibling (`GitHub-evil`), `..` escaping and `..` staying inside |
+| Output caps | 7 | 40-line and 3000-char caps, full text kept in `ANSWER`, `GEMINI_MAX_LINES`, legacy `GEMINI_MAX_SATIR`, non-integer and non-positive values |
+| File hygiene | 5 | work dir `0700`, answer `0600`, random name under `TMPDIR`, raw JSON path never printed, agy stderr not echoed on success |
+| Robustness | 6 | valid JSON with an unexpected shape lands on a documented code, never a traceback |
+
+### First run: 31 passed, 7 failed — two real bugs
+
+**Usage errors exited `1`, not the documented `2`.** `${1:?...}` is a bash
+expansion error, and bash exits non-interactive shells with status `1` on it.
+Code `1` means "agy failed", so a missing argument read as a Gemini failure.
+Fixed with explicit checks that `exit 2`.
+
+**Unexpected JSON shapes crashed the parser.** A top-level array, `usage: null`,
+a string `duration_seconds`, a number `response` or a string in
+`denied_actions` each raised a Python traceback, exited `1` and wrote no
+`ANSWER` file. `agy`'s JSON is an external contract; a schema change should not
+look like an agy failure. Fixed: measurement fields degrade to `?` and the run
+is still reported; a non-object top level or a non-string `response` exits `5`
+— the answer itself is never guessed at.
+
+### After the fix: 39/39, three repeated runs identical
+
+The robustness group was tightened to assert the exact exit code per shape
+(`array` → 5, `null-usage` → 0 with `TOKEN ?`, `string-duration` → 0 with
+`TIME ?s`, `number-response` → 5, string or object `denied_actions` → 4 with
+`DENIED: command`), not only the absence of a traceback.
+
+### Open policy findings — measured locally, not fixed
+
+Probed with harmless payloads directly on this machine, without `agy`. They
+show what the allowed binaries can do; whether `agy`'s matcher lets each form
+through is still unmeasured.
+
+| Allow rule | Measured capability |
+|---|---|
+| `command(regex:node --check .*)` | `--require`, `-r` and `--import` load and run a module before the check — same class as the removed `npm run` |
+| `command(find)` | `-exec` ran a non-allowed binary and printed a file; `-fprint` wrote a file; `-delete` removed one — writes outside the `write_file` gate |
+| git regex, `grep` | `git grep -e . <file>` prints a tracked file line by line, including `read_file`-denied ones (`compose.yaml`, `Caddyfile` are tracked in the backend); `git grep -e . HEAD~N` prints content from old commits |
+| git regex, `status --short` | `core.fsmonitor` in `.git/config` ran a command on `git status` |
+
+### Unconfirmed items
+
+- Whether `agy` checks the program after `find -exec` as a separate command.
+- Whether `agy` applies `command(regex:...)` as a full match.
+- Whether `write_file` can reach `.git/config` (the regex `deny` was measured
+  ineffective for `read_file`; for `write_file` it is untested). If it can, the
+  `fsmonitor` path is a full chain.
+- `tree -o` was not probed: `tree` is not installed on this machine.
+
+These need live `agy` runs, together with the pending git argument whitelist
+re-measure above.
+
+---
+
+## Sarmalayıcı sözleşme testleri — özet (24 Ekim 2026)
+
+`bash tests/test_wrapper.sh` gerçek `bin/gemini-is.sh`'yi değiştirmeden, sahte
+bir `agy` ile çalıştırır; kota harcamaz. `HOME` her testte sahte bir klasöre
+çevrilir, betiğin sabit `agy` yolu ve izinli kökü onunla birlikte taşınır.
+
+İlk koşu **31 geçti, 7 başarısız** — iki gerçek hata:
+
+- **Kullanım hatası `1` dönüyordu, belgelenen `2` değil.** `${1:?}` bash'te 1
+  ile çıkar; 1 "agy hatası" demek. Açık denetimle `exit 2` yapıldı.
+- **Beklenmeyen JSON şekli çöküyordu.** Dizi kök, `usage: null`, metin
+  `duration_seconds`, sayı `response` ya da metin `denied_actions` Python
+  hata yığını basıyor, 1 dönüyor, `ANSWER` yazılmıyordu. Artık ölçüm alanları
+  `?`'ye düşer; kök nesne değilse ya da `response` metin değilse `5`.
+
+Düzeltmeden sonra **39/39**, üç tekrarda aynı.
+
+Açık politika bulguları (yerelde ölçüldü, düzeltilmedi): `node --check .*`
+`--require` ile kod çalıştırıyor; `find` `-exec`/`-fprint`/`-delete` ile yazma
+kapısının dışından çalıştırıp yazıp siliyor; `git grep -e . <dosya>` deny'lı ama
+takipli dosyayı basıyor, `HEAD~N` ile geçmişi de; `.git/config` içindeki
+`core.fsmonitor` `git status`'ta komut çalıştırıyor. `agy`'nin bunlara izin
+verip vermediği canlı koşu ister.

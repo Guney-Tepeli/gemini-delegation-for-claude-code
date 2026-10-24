@@ -29,7 +29,7 @@
 #   2  usage / environment error
 #   3  agy status is not SUCCESS
 #   4  empty answer (usually a silently denied action — see the DENIED line)
-#   5  agy JSON could not be parsed
+#   5  agy JSON could not be parsed, or has an unexpected shape
 set -euo pipefail
 umask 077
 
@@ -53,8 +53,16 @@ case "${1:-}" in
     MODE=(--mode accept-edits); shift ;;
 esac
 
-REPO="${1:?usage: gemini-is.sh [--write] <repo-path> \"<task>\"}"
-TASK="${2:?task text required}"
+# Explicit checks, not ${1:?}: bash exits 1 on a failed :? expansion, which
+# would collide with "agy failed" instead of the documented usage code 2.
+if [ -z "${1:-}" ]; then
+  echo "ERROR: usage: gemini-is.sh [--write] <repo-path> \"<task>\"" >&2; exit 2
+fi
+if [ -z "${2:-}" ]; then
+  echo "ERROR: task text required" >&2; exit 2
+fi
+REPO="$1"
+TASK="$2"
 
 [ -d "$REPO" ] || { echo "ERROR: no such directory: $REPO" >&2; exit 2; }
 [ -x "$AGY" ] || { echo "ERROR: agy not found: $AGY" >&2; exit 2; }
@@ -115,23 +123,42 @@ def cap(name, default):
     return value if value > 0 else default
 
 
+def shape_error(what):
+    print("ERROR: unexpected agy JSON shape: %s" % what, file=sys.stderr)
+    sys.exit(5)
+
+
 try:
     data = json.load(open(sys.argv[1]))
 except (ValueError, OSError) as exc:
     print("ERROR: could not parse agy JSON: %s" % exc, file=sys.stderr)
     sys.exit(5)
 
-usage = data.get("usage", {})
+# agy's JSON is an external contract. Measurement fields degrade to "?" so the
+# run is still reported; the answer itself is never guessed at (exit 5).
+if not isinstance(data, dict):
+    shape_error("top level is %s, not an object" % type(data).__name__)
+
+usage = data.get("usage")
+usage = usage if isinstance(usage, dict) else {}
 status = data.get("status", "?")
+duration = data.get("duration_seconds")
+duration = round(duration) if isinstance(duration, (int, float)) else "?"
 print("TOKEN %s | TIME %ss | TURN %s | STATUS %s" % (
-    usage.get("total_tokens", "?"), round(data.get("duration_seconds", 0)),
-    data.get("num_turns", "?"), status))
+    usage.get("total_tokens", "?"), duration, data.get("num_turns", "?"), status))
 
 denied = data.get("denied_actions")
 if denied:
-    print("DENIED: %s" % ", ".join(sorted({d.get("action", "?") for d in denied})))
+    if not isinstance(denied, list):
+        denied = [denied]
+    print("DENIED: %s" % ", ".join(sorted({
+        str(d.get("action", "?")) if isinstance(d, dict) else str(d)
+        for d in denied})))
 
-answer = (data.get("response") or "").strip()
+response = data.get("response")
+if response is not None and not isinstance(response, str):
+    shape_error("response is %s, not a string" % type(response).__name__)
+answer = (response or "").strip()
 with open(sys.argv[2], "w") as handle:
     handle.write(answer + "\n")
 

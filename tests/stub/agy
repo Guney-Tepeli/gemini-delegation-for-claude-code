@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Stand-in for the Antigravity CLI. The wrapper pins agy to $HOME/.local/bin/agy,
+# so the test harness points HOME at a fake home and installs this file there.
+# No network, no quota, fully deterministic.
+#
+# Behaviour is driven by environment variables the wrapper passes through:
+#   STUB_JSON    file whose bytes are written to stdout (unset = no stdout)
+#   STUB_STDERR  text written to stderr
+#   STUB_EXIT    exit code (default 0)
+#
+# Every call is recorded in $HOME/stub.log: the working directory first, then
+# one argv element per line, so the harness can check the exact call pattern.
+{
+  echo "PWD=$(pwd -P)"
+  for arg in "$@"; do printf 'ARG=%s\n' "$arg"; done
+} >"$HOME/stub.log"
+
+[ -n "${STUB_STDERR:-}" ] && printf '%s\n' "$STUB_STDERR" >&2
+[ -n "${STUB_JSON:-}" ] && cat "$STUB_JSON"
+exit "${STUB_EXIT:-0}"

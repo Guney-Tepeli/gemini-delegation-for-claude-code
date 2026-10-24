@@ -290,7 +290,12 @@ açılır, açılırsa turun tasarrufu silinir.
 Betik artık sessizce başarılı görünmüyor. Çıkış kodları: `0` başarı, `1` agy
 hatası ya da çıktı yok, `2` kullanım/ortam hatası, `3` `STATUS` SUCCESS değil,
 `4` boş cevap (çoğunlukla sessizce reddedilen eylem — `DENIED` satırına bak),
-`5` JSON ayrıştırılamadı.
+`5` JSON ayrıştırılamadı ya da beklenmeyen şekilde (kök nesne değil, `response`
+metin değil). Ölçüm alanları (`usage`, `duration_seconds`, `denied_actions`)
+bozuksa koşu yine raporlanır, değer `?` olarak basılır.
+
+Sözleşme testleri `tests/test_wrapper.sh` içinde: sahte bir `agy` ile, kota
+harcamadan çalışır — `bash tests/test_wrapper.sh`.
 
 **Kapsam iki yerden kilitli.** `agy` yolu betiğe sabit yazıldı — ortam
 değişkeniyle değiştirilemez, yoksa "izin betiğe verilir, `agy`'ye verilmez"
@@ -708,7 +713,12 @@ gets opened, and one opened raw JSON erases the turn's savings.
 The script no longer looks quiet when it fails. Exit codes: `0` success, `1` agy
 failed or produced no output, `2` usage/environment error, `3` `STATUS` is not
 SUCCESS, `4` empty answer (usually a silently denied action — check the `DENIED`
-line), `5` JSON could not be parsed.
+line), `5` JSON could not be parsed or has an unexpected shape (top level not
+an object, `response` not a string). Broken measurement fields (`usage`,
+`duration_seconds`, `denied_actions`) still produce a report, printed as `?`.
+
+Contract tests live in `tests/test_wrapper.sh`. They run against a stub `agy`
+and spend no quota: `bash tests/test_wrapper.sh`.
 
 **Scope is locked in two places.** The `agy` path is hardcoded in the script —
 no env override, because otherwise "permission goes to the script, never to
@@ -901,6 +911,7 @@ sentence and a directory path, nothing else.
 | `README.md` | This guide |
 | [`TEST_RESULTS.md`](TEST_RESULTS.md) | Measured permission and savings tests |
 | `bin/gemini-is.sh` | Wrapper script — every call goes through it |
+| `tests/test_wrapper.sh` | Wrapper contract tests, offline, against `tests/stub/agy` |
 | `agy/settings.ornek.json` | Permission file template |
 | `claude/command-gemini.ornek.md` | The `/gemini` slash command |
 | `claude/agent-gemini.ornek.md` | Subagent definition (optional) |
