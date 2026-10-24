@@ -91,7 +91,7 @@ dinlemiyor — izin verilen bir ikili her yola erişebiliyor. Bu yüzden koruma
   Üç deponun `.env.local` / `.env.sms` dosyaları tam yolla deny — test edildi,
   üçü de KAPALI döndü.
 - **Komutlar:** ls, wc, find, pwd, echo, true, basename, dirname, realpath,
-  stat, tree, `node --check`; git yalnız okuma alt komutlarıyla:
+  stat, `node --check <dosya>` (find yalnız arama bayraklarıyla); git yalnız okuma alt komutlarıyla:
   `git grep`, `git ls-files`, `git log --oneline`, `git diff --stat`,
   `git status --short` (`--no-pager` öneki serbest).
   **git argümanları da sınırlı.** İzinli bayraklar: `-e -i -l -n -w -E -F`,

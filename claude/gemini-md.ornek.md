@@ -8,8 +8,8 @@ KULLANMA — izin listesinde yok, çağırırsan komut reddedilir ve iş yarıda
 
 Dosya içeriği: `read_file`. Kod araması: `git grep`.
 
-İzinli komutlar: `ls`, `wc`, `find`, `pwd`, `echo`, `true`, `basename`,
-`dirname`, `realpath`, `stat`, `tree`, `node --check` ve yalnız okuma yapan git
+İzinli komutlar: `ls`, `wc`, `find` (yalnız `-name -type -maxdepth -path -not -o -size -newer`; `-exec` yok), `pwd`, `echo`, `true`, `basename`,
+`dirname`, `realpath`, `stat`, `node --check <dosya>` ve yalnız okuma yapan git
 alt komutları: `git grep`, `git ls-files`, `git log --oneline`,
 `git diff --stat`, `git status --short` (`--no-pager` öneki serbest).
 

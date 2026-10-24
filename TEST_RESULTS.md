@@ -4,6 +4,7 @@
 
 [![tests](https://img.shields.io/badge/tests-6%2F6%20passing-brightgreen)](#security-tests)
 [![wrapper](https://img.shields.io/badge/wrapper%20contract-39%2F39%20passing-brightgreen)](#wrapper-contract-tests-24-october-2026)
+[![allow list](https://img.shields.io/badge/allow%20list-narrowed%2024%20Oct%202026-success)](#allow-list-narrowed-24-october-2026)
 [![security](https://img.shields.io/badge/secret%20files-blocked-success)](#security-tests)
 [![context](https://img.shields.io/badge/context%20offloaded-41k%20%E2%86%92%2015%20tokens-blue)](#performance)
 [![verified](https://img.shields.io/badge/output-independently%20verified-brightgreen)](#test-6--the-savings-measurement)
@@ -623,3 +624,71 @@ kapısının dışından çalıştırıp yazıp siliyor; `git grep -e . <dosya>`
 takipli dosyayı basıyor, `HEAD~N` ile geçmişi de; `.git/config` içindeki
 `core.fsmonitor` `git status`'ta komut çalıştırıyor. `agy`'nin bunlara izin
 verip vermediği canlı koşu ister.
+
+---
+
+## Allow list narrowed (24 October 2026)
+
+The policy findings above were acted on the same day. Approach: narrow the
+allow list rather than extend the deny list. A wrong allow rule fails closed
+(the write is refused and shows up as `DENIED`); a missing deny line fails open
+and nothing reports it.
+
+**The drift was real.** The 22 September fix replaced the migrations glob with
+literal paths and warned that new files would not be covered. Measured today:
+104 migration files on disk, 52 literal entries (51 files plus the directory
+itself), **53 files uncovered**. The whole `<repo>/*` write root also covered
+`.claude/` (Claude hooks run commands in the main session), `.github/workflows`,
+`package.json` and `.git/config`.
+
+| Rule | Before | After |
+|---|---|---|
+| Write roots | `write_file(<group>/*)`, `write_file(<site>/*)` | backend `api/ lib/ scripts/ retell/ docs/`; panel `app/ components/ lib/ docs/ public/`; site root `*.html *.css *.js *.txt *.xml`, `assets/`, `docs/` |
+| Migrations deny | 52 literal paths | removed — no write root reaches `db/` |
+| `node --check` | `node --check .*` | `node --check <one path, no leading dash>` |
+| `find` | bare `command(find)` | regex with counted flags only; `-exec`, `-execdir`, `-ok`, `-delete`, `-fprint`, `-L` rejected |
+| `tree` | allowed | removed (`-o` writes; not installed, unused) |
+
+Live file: allow 16 → 30, deny 80 → 28. Previous version kept outside the repo
+as `settings.json.bak-20261024`. The `GEMINI.md` of all three target repos was
+updated to the same command list and write scope.
+
+**Checked locally:** both new regexes against 16 commands (legitimate searches
+and syntax checks accepted; every exec, write, delete and chaining form
+rejected), every regex in both files compiles, both files parse.
+
+**Not yet measured live:**
+
+- whether `agy`'s allow glob accepts the mid-pattern form `<site>/*.html` (only
+  trailing `/*` was measured; if not, site writes fail closed with `DENIED`),
+- the new `find` and `node --check` regexes through `agy`'s matcher,
+- the git argument whitelist (pending since 22 September),
+- whether `agy` checks the program after `find -exec` separately (now moot for
+  the allow list, still relevant to the matcher model).
+
+`git grep -e . <tracked-file>` and `git grep -e . <commit>` remain open by
+design: pathspecs and revisions are indistinguishable from search scopes at the
+regex layer. The rule stays: nothing secret is tracked in git.
+
+---
+
+## İzin listesi daraltıldı — özet (24 Ekim 2026)
+
+Yaklaşım: deny listesini uzatmak yerine allow listesini daraltmak. Yanlış allow
+kuralı güvenli tarafta kalır (`DENIED` görünür), eksik deny satırı sessizce açık
+bırakır.
+
+Kayma ölçüldü: diskte 104 migration, listede 52 literal yol (51 dosya + klasörün
+kendisi), **53 dosya korumasızdı**. Depo köküne yazma izni `.claude/`, `.github/workflows`,
+`package.json` ve `.git/config`'i de kapsıyordu.
+
+Yazma artık yalnız kaynak klasörlerde (backend `api lib scripts retell docs`,
+panel `app components lib docs public`, site kökünde uzantıya göre +
+`assets docs`). `node --check` tek yol argümanına, `find` sayılı arama
+bayraklarına indirildi, `tree` kaldırıldı. Canlı dosya: allow 16 → 30, deny
+80 → 28; eski sürüm repo dışında yedekli. Üç hedef deponun `GEMINI.md`'si
+güncellendi.
+
+Yerelde doğrulandı: iki yeni regex 16 komutla sınandı, tüm regex'ler derleniyor.
+Canlı `agy` ile ölçülmesi gerekenler: ortada yıldızlı glob (`*.html`), yeni
+`find` / `node --check` regex'leri, 22 Eylül'den kalan git argüman listesi.

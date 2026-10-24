@@ -176,7 +176,7 @@ headless mode cannot prompt for, so it was auto-denied.
       "read_file(/MUTLAK/YOL/depolar/*)",
       "command(regex:git (--no-pager )?(grep|ls-files|log --oneline|diff --stat|status --short)( (-[0-9]+|-[eilnwEF]|--count|--name-only|--files-with-matches|--untracked|--cached|--max-count=[0-9]+|--no-color|[A-Za-z0-9_./*:@^~,+=][A-Za-z0-9_./*:@^~,+=-]*))*)",
       "command(ls)",
-      "command(find)",
+      "command(regex:find [A-Za-z0-9_./][A-Za-z0-9_./-]*( (-maxdepth [0-9]+|-mindepth [0-9]+|-type [fd]|-(i?name|path) '?[A-Za-z0-9_./*-]+'?|-not|-o|-print|-size [+-]?[0-9]+[kMG]?|-newer [A-Za-z0-9_./][A-Za-z0-9_./-]*))*)",
       "command(wc)"
     ],
     "deny": [
@@ -221,6 +221,14 @@ Bu yüzden izin listesinden çıkarıldı:
 | `command(regex:npm run ...)` | `package.json` script'i = keyfi kabuk komutu |
 | `command(regex:npx ...)` | `eslint.config.js` / `next.config.js` = keyfi JS |
 | `command(git)` (sınırsız) | `git show HEAD:<dosya>` deny'lı içeriği basıyor; `git -C` kapsamdan çıkıyor; `git push` dışarı sızdırıyor |
+| `command(regex:node --check .*)` (24 Ekim) | `--require` / `-r` / `--import` modülü kontrolden önce çalıştırıyor — ölçüldü. Yerine tek yol argümanı, tire ile başlayamaz |
+| `command(find)` (24 Ekim) | `-exec` başka program çalıştırıyor, `-fprint` yazıyor, `-delete` siliyor — üçü de `write_file` kapısının dışında, ölçüldü. Yerine sayılı bayraklar: `-maxdepth -mindepth -type -name -iname -path -not -o -print -size -newer` |
+| `command(tree)` (24 Ekim) | `tree -o` dosya yazar; kullanılmıyordu |
+| `write_file(<depo>/*)` (24 Ekim) | Depo kökü `.claude/` (kanca = ana oturumda komut), `.github/workflows`, `package.json`, `.git/config` demek. Tam yol `deny` listesi kayıyordu: 104 migration dosyasının 53'ü kapsam dışıydı. Yerine kaynak klasörler (`api/*`, `app/*`, …) ya da uzantılar (`site/*.html`) |
+
+İzin listesini dar tutmak, `deny` listesini güncel tutmaya çalışmaktan daha güvenilir:
+yanlış yazılmış bir allow kuralı yazmayı engeller ve `DENIED` olarak görünür;
+eksik bir deny satırı ise sessizce açık bırakır.
 
 Yerine `git` yalnız okuma alt komutlarıyla açık: `git grep`, `git ls-files`,
 `git log --oneline`, `git diff --stat`, `git status --short`. Derleme, lint ve
@@ -347,7 +355,7 @@ bir tane koy — 15-20 satır. Uzun olursa her çağrıda Gemini'nin kotasından
 `grep`, `rg`, `cat`, `head`, `tail`, `sed`, `awk` KULLANMA — izin listesinde yok,
 çağırırsan komut reddedilir ve iş yarıda kalır.
 Dosya içeriği: `read_file`. Kod araması: `git grep`.
-İzinli komutlar: ls, wc, find, pwd, echo, stat, tree, `node --check` ve yalnız
+İzinli komutlar: ls, wc, find (yalnız arama bayrakları), pwd, echo, stat, `node --check <dosya>` ve yalnız
 okuma yapan git alt komutları: `git grep`, `git ls-files`, `git log --oneline`,
 `git diff --stat`, `git status --short`.
 `npm run` ve `npx` İZİNLİ DEĞİL — depo kontrolündeki kod çalıştırıyorlar.
@@ -600,7 +608,7 @@ Without permission rules even reading the repo fails. Rules live in
       "read_file(/ABS/PATH/repos/*)",
       "command(regex:git (--no-pager )?(grep|ls-files|log --oneline|diff --stat|status --short)( (-[0-9]+|-[eilnwEF]|--count|--name-only|--files-with-matches|--untracked|--cached|--max-count=[0-9]+|--no-color|[A-Za-z0-9_./*:@^~,+=][A-Za-z0-9_./*:@^~,+=-]*))*)",
       "command(ls)",
-      "command(find)",
+      "command(regex:find [A-Za-z0-9_./][A-Za-z0-9_./-]*( (-maxdepth [0-9]+|-mindepth [0-9]+|-type [fd]|-(i?name|path) '?[A-Za-z0-9_./*-]+'?|-not|-o|-print|-size [+-]?[0-9]+[kMG]?|-newer [A-Za-z0-9_./][A-Za-z0-9_./-]*))*)",
       "command(wc)"
     ],
     "deny": [
@@ -645,6 +653,14 @@ Removed from the allow list for this reason:
 | `command(regex:npm run ...)` | a `package.json` script is arbitrary shell |
 | `command(regex:npx ...)` | `eslint.config.js` / `next.config.js` are arbitrary JS |
 | `command(git)` (unrestricted) | `git show HEAD:<file>` prints denied content; `git -C` escapes the scope; `git push` exfiltrates |
+| `command(regex:node --check .*)` (24 Oct) | `--require` / `-r` / `--import` run a module before the check — measured. Replaced by a single path argument that cannot start with a dash |
+| `command(find)` (24 Oct) | `-exec` runs another program, `-fprint` writes, `-delete` removes — all outside the `write_file` gate, measured. Replaced by counted flags: `-maxdepth -mindepth -type -name -iname -path -not -o -print -size -newer` |
+| `command(tree)` (24 Oct) | `tree -o` writes a file; it was unused |
+| `write_file(<repo>/*)` (24 Oct) | A repo root includes `.claude/` (hooks = commands in the main session), `.github/workflows`, `package.json`, `.git/config`. The literal `deny` list drifted: 53 of 104 migration files were uncovered. Replaced by source directories (`api/*`, `app/*`, …) or extensions (`site/*.html`) |
+
+A narrow allow list is more reliable than a maintained deny list: a wrong allow
+rule blocks a write and shows up as `DENIED`; a missing deny line leaves a hole
+silently.
 
 `git` stays open for read-only subcommands only: `git grep`, `git ls-files`,
 `git log --oneline`, `git diff --stat`, `git status --short`. Build, lint and
@@ -771,7 +787,7 @@ The tool rule goes first:
 Do NOT use `grep`, `rg`, `cat`, `head`, `tail`, `sed`, `awk` — they are not on
 the allow list; calling one gets denied and the task aborts.
 File content: `read_file`. Code search: `git grep`.
-Allowed commands: ls, wc, find, pwd, echo, stat, tree, `node --check`, and
+Allowed commands: ls, wc, find (search flags only), pwd, echo, stat, `node --check <file>`, and
 read-only git subcommands: `git grep`, `git ls-files`, `git log --oneline`,
 `git diff --stat`, `git status --short`.
 `npm run` and `npx` are NOT allowed — they execute repo-controlled code.
